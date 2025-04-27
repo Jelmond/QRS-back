@@ -10,12 +10,12 @@ interface Order {
     price: number; // Добавьте поле для цены
 }
 
-export async function getPaymentLink(payment: Payment, order: Order): Promise<string> {
-    const paymentUrl = process.env.PAYMENT_URL;
-    const userName = process.env.ALPHA_USERNAME;
-    const password = process.env.ALPHA_PASSWORD;
-    const successUrl = process.env.RETURN_URL;
-    const failureUrl = process.env.FAILURE_URL;
+export async function getPaymentLink(payment: Payment, order: Order): Promise<any> {
+    const paymentUrl = process.env.PAYMENT_URL || '';
+    const userName = process.env.ALPHA_USERNAME || '';
+    const password = process.env.ALPHA_PASSWORD || '';
+    const successUrl = process.env.RETURN_URL || '';
+    const failureUrl = process.env.FAILURE_URL || '';
 
     const shiftedOrderId = getAlphaOrderId(order.id);
 
@@ -24,9 +24,9 @@ export async function getPaymentLink(payment: Payment, order: Order): Promise<st
         requestOptions
     );
 
-    const paymentResult = await paymentInfo.text();
+    const paymentResult = await paymentInfo.json();
 
-    console.log('результат оплаты', paymentResult);
+    console.log('Payment result:', paymentResult);
 
     return paymentResult;
 }

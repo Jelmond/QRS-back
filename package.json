@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "ts-node src/server.ts"
+    "dev": "npx ts-node src/server.ts"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
