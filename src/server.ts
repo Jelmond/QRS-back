@@ -17,7 +17,10 @@ const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-app.use(cors());
+app.use(cors({
+    origin: 'https://qrsharatspub.vercel.app', // <-- твой фронтенд-домен
+    credentials: true
+  }));
 
 app.use(bodyParser.json());
 
