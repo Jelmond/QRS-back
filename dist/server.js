@@ -19,10 +19,13 @@ const express_1 = __importDefault(require("express"));
 const body_parser_1 = __importDefault(require("body-parser"));
 const supabase_js_1 = require("@supabase/supabase-js");
 const processAlfaBankPayment_1 = require("./utils/processAlfaBankPayment");
+//@ts-expect-error
+const cors_1 = __importDefault(require("cors"));
 const app = (0, express_1.default)();
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_KEY || '';
 const supabase = (0, supabase_js_1.createClient)(supabaseUrl, supabaseKey);
+app.use((0, cors_1.default)());
 app.use(body_parser_1.default.json());
 // Test Supabase connection
 app.get('/test-connection', (req, res) => __awaiter(void 0, void 0, void 0, function* () {

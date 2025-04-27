@@ -8,11 +8,16 @@ import { createClient } from '@supabase/supabase-js';
 import { getPaymentLink } from './utils/processAlfaBankPayment';
 import { getOrderPrice } from './utils/getOrderPrice';
 import { Payment, Order } from './types/schemaTypes';
+//@ts-expect-error
+import cors from 'cors';
+
 
 const app = express();
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+app.use(cors());
 
 app.use(bodyParser.json());
 
