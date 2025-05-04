@@ -6,7 +6,6 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import { createClient } from '@supabase/supabase-js';
 import { getPaymentLink } from './utils/processAlfaBankPayment';
-import { getOrderPrice } from './utils/getOrderPrice';
 import { Payment, Order } from './types/schemaTypes';
 //@ts-expect-error
 import cors from 'cors';
@@ -79,6 +78,8 @@ app.post('/pay', async (req: any, res: any) => {
 
         // Calculate order price (or use the total from the order)
         const orderPrice = order.total;
+
+        console.log('orderPrice', order.total)
 
         // Create payment object
         const payment = {
