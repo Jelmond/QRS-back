@@ -16,12 +16,18 @@ const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-app.use(cors({
-    origin: 'https://qrsharatspub.vercel.app', // <-- твой фронтенд-домен
-    credentials: true
-  }));
+
+const corsOptions = {
+    origin: 'https://qrsharatspub.vercel.app',
+    credentials: true,
+  };
+  
+app.use(cors(corsOptions));
+
+app.options('*', cors(corsOptions));
 
 app.use(bodyParser.json());
+
 
 // Test Supabase connection
 app.get('/test-connection', async (req: any, res: any) => {
