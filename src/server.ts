@@ -16,14 +16,23 @@ const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-
-const corsOptions = {
-    origin: 'https://qrsharatspub.vercel.app',
-    credentials: true,
-  };
+const allowedOrigins = [
+    'https://qrsharatspub.vercel.app',
+    'https://qrsinc.by'
+  ];
   
-app.use(cors(corsOptions));
+const corsOptions = {
+origin: function (origin: any, callback: any) {
+    if (!origin || allowedOrigins.includes(origin)) {
+    callback(null, true);
+    } else {
+    callback(new Error('Not allowed by CORS'));
+    }
+},
+credentials: true
+};
 
+app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
 app.use(bodyParser.json());
