@@ -128,13 +128,13 @@ app.post('/pay', async (req: any, res: any) => {
 
         // Save payment information to Supabase
         const paymentData: Partial<Payment> = {
-            order_id: orderId,
             hash_id: paymentId,
             restaurant_id: order.restaurant_id,
             guest_profile_id: order.guest_profile_id,
             amount: orderPrice,
             status: 'pending',
-            created_at: new Date()
+            created_at: new Date(),
+            updated_at: new Date()
         };
 
         const { data, error } = await supabase
