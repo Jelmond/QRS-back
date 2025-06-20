@@ -139,10 +139,24 @@ app.post('/pay', async (req: any, res: any) => {
 
         const { data, error } = await supabase
             .from('payments')
-            .insert([paymentData]);
+            .insert([paymentData])
+            .select()
+            .single();
 
         if (error) {
             throw new Error(`Failed to save payment: ${error.message}`);
+        }
+
+        // Create order-payment link record
+        const { error: linkError } = await supabase
+            .from('order_payment_links')
+            .insert([{
+                order_id: orderId,
+                payment_id: data.id
+            }]);
+
+        if (linkError) {
+            throw new Error(`Failed to create order-payment link: ${linkError.message}`);
         }
 
         // Log the payment attempt
