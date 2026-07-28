@@ -4,21 +4,29 @@ dotenv.config();
 
 import express from 'express';
 import bodyParser from 'body-parser';
-import { createClient } from '@supabase/supabase-js';
+import swaggerUi from 'swagger-ui-express';
 import { getPaymentLink } from './utils/processAlfaBankPayment';
 import { Payment, Order } from './types/schemaTypes';
+import { getSupabaseClient } from './db/supabaseClient';
+import { syncIikoMenuToDatabase } from './pos/iiko/iikoSyncService';
+import { swaggerSpec } from './docs/swagger';
+import adminPosRouter from './routes/adminPos';
+import adminRestaurantsRouter from './routes/adminRestaurants';
+import publicRouter from './routes/public';
+import guestProfileRouter from './routes/guestProfile';
+import ordersRouter from './routes/orders';
+import { adminAuth } from './middleware/adminAuth';
 //@ts-expect-error
 import cors from 'cors';
 
-
 const app = express();
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = getSupabaseClient();
 
 const allowedOrigins = [
     'https://qrsharatspub.vercel.app',
-    'https://qrsinc.by'
+    'https://qrsinc.by',
+    'http://localhost:3000',
+    'http://localhost:5173', // Vite dev server
   ];
   
 const corsOptions = {
@@ -34,8 +42,14 @@ credentials: true
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
-
 app.use(bodyParser.json());
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/admin/pos', adminAuth, adminPosRouter);
+app.use('/admin/restaurants', adminAuth, adminRestaurantsRouter);
+app.use('/', publicRouter);
+app.use('/guest-profile', guestProfileRouter);
+app.use('/orders', ordersRouter);
 
 
 // Test Supabase connection
@@ -68,8 +82,6 @@ app.post('/pay', async (req: any, res: any) => {
     }
 
     console.log('orderId', orderId);
-    console.log('Supabase URL:', supabaseUrl ? 'Set' : 'Not set');
-    console.log('Supabase Key:', supabaseKey ? 'Set (length: ' + supabaseKey.length + ')' : 'Not set');
 
     try {
         console.log('Fetching order from database...');
@@ -218,33 +230,42 @@ app.get('/success-payment', async (req: any, res: any) => {
         }
         
         const payment = payments[0];
-        
+
+        // Look up the order linked to this payment
+        const { data: link } = await supabase
+            .from('order_payment_links')
+            .select('order_id')
+            .eq('payment_id', payment.id)
+            .maybeSingle();
+
+        const linkedOrderId = link?.order_id ?? null;
+
         // Update payment status to success
         const { error: updateError } = await supabase
             .from('payments')
-            .update({ 
-                status: 'success',
-                updated_at: new Date()
-            })
+            .update({ status: 'success', updated_at: new Date() })
             .eq('hash_id', orderId);
-            
+
         if (updateError) throw updateError;
-        
-        // Log the successful payment
-        await supabase
-            .from('order_logs')
-            .insert([{
-                order_id: payment.order_id,
-                action: 'payment_success',
-                details: { 
-                    payment_id: orderId,
-                    amount: payment.amount
-                }
-            }]);
-        
-        // Redirect to client URL
+
+        // Update order status to completed
+        if (linkedOrderId) {
+            await supabase
+                .from('orders')
+                .update({ status: 'completed', updated_at: new Date().toISOString() })
+                .eq('id', linkedOrderId);
+
+            await supabase
+                .from('order_logs')
+                .insert([{
+                    order_id: linkedOrderId,
+                    action: 'payment_success',
+                    details: { payment_id: orderId, amount: payment.amount }
+                }]);
+        }
+
         const baseClientUrl = process.env.BASE_CLIENT_URL || 'http://localhost:3000';
-        res.redirect(`${baseClientUrl}/payment-success?orderId=${payment.order_id}`);
+        res.redirect(`${baseClientUrl}/payment-success?orderId=${linkedOrderId ?? ''}`);
     } catch (error: any) {
         console.error('Success payment error:', error);
         
@@ -278,33 +299,34 @@ app.get('/fail-payment', async (req: any, res: any) => {
         }
         
         const payment = payments[0];
-        
-        // Update payment status to failure
+
+        const { data: link } = await supabase
+            .from('order_payment_links')
+            .select('order_id')
+            .eq('payment_id', payment.id)
+            .maybeSingle();
+
+        const linkedOrderId = link?.order_id ?? null;
+
         const { error: updateError } = await supabase
             .from('payments')
-            .update({ 
-                status: 'failure',
-                updated_at: new Date()
-            })
+            .update({ status: 'failure', updated_at: new Date() })
             .eq('hash_id', orderId);
-            
+
         if (updateError) throw updateError;
-        
-        // Log the failed payment
-        await supabase
-            .from('order_logs')
-            .insert([{
-                order_id: payment.order_id,
-                action: 'payment_failure',
-                details: { 
-                    payment_id: orderId,
-                    amount: payment.amount
-                }
-            }]);
-        
-        // Redirect to client URL
+
+        if (linkedOrderId) {
+            await supabase
+                .from('order_logs')
+                .insert([{
+                    order_id: linkedOrderId,
+                    action: 'payment_failure',
+                    details: { payment_id: orderId, amount: payment.amount }
+                }]);
+        }
+
         const baseClientUrl = process.env.BASE_CLIENT_URL || 'http://localhost:3000';
-        res.redirect(`${baseClientUrl}/payment-failure?orderId=${payment.order_id}`);
+        res.redirect(`${baseClientUrl}/payment-failure?orderId=${linkedOrderId ?? ''}`);
     } catch (error: any) {
         console.error('Failure payment error:', error);
         
@@ -314,6 +336,25 @@ app.get('/fail-payment', async (req: any, res: any) => {
     }
 });
 
-app.listen(3000, () => {
-    console.log('Server is running on port 3000');
+// ── iiko menu sync ────────────────────────────────────────────────────────────
+// Triggered from admin panel to pull latest nomenclature from iiko into Supabase.
+app.post('/sync/iiko', async (req: any, res: any) => {
+    const { restaurantId } = req.body;
+
+    if (!restaurantId) {
+        return res.status(400).send({ success: false, error: 'Missing required parameter: restaurantId' });
+    }
+
+    try {
+        const result = await syncIikoMenuToDatabase(restaurantId);
+        res.status(200).send({ success: true, ...result });
+    } catch (error: any) {
+        console.error('iiko sync error:', error);
+        res.status(500).send({ success: false, error: error.message });
+    }
+});
+
+const PORT = parseInt(process.env.PORT ?? '3000', 10);
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
 });
