@@ -352,6 +352,52 @@ Base URL: `https://qrs-back.onrender.com`
 
 ---
 
+## Управление меню (admin)
+
+> Все `/admin/*` маршруты требуют заголовок `Authorization: Bearer <ADMIN_SECRET>`
+
+### GET `/admin/restaurants/:id/menu-items`
+
+Список всех активных блюд ресторана.
+
+---
+
+### PATCH `/admin/restaurants/:id/menu-items/:itemId`
+
+Обновить контент блюда вручную. Синхронизация с iiko эти поля **не перезаписывает**.
+
+**Body** (все поля опциональны)
+```json
+{
+  "description": "Нежная паста с беконом и пармезаном",
+  "image": "https://...",
+  "isAvailable": true,
+  "isPopular": false,
+  "isSpicy": false,
+  "name": "Паста карбонара",
+  "indexNumber": 5
+}
+```
+
+---
+
+### POST `/admin/restaurants/:id/menu-items/:itemId/image`
+
+Загрузить картинку блюда в Supabase Storage. Возвращает публичный URL и сохраняет его в `image`.
+
+**Требования:**
+- Тип запроса: `multipart/form-data`
+- Поле файла: `image`
+- Максимальный размер: 5 МБ
+- В Supabase Storage должен существовать bucket `menu-images` с публичным доступом на чтение
+
+**Пример ответа**
+```json
+{ "image": "https://yypkvnotsnhdyikzjuzy.supabase.co/storage/v1/object/public/menu-images/restaurantId/itemId.jpg" }
+```
+
+---
+
 ## Оплата
 
 ### POST `/pay`

@@ -1,5 +1,8 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { getSupabaseClient } from '../db/supabaseClient';
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 const router = Router();
 
@@ -338,6 +341,89 @@ router.delete('/:id/categories/:categoryId', async (req: any, res: any) => {
 
     if (error || !data) return res.status(404).json({ error: 'Category not found' });
     res.json({ message: 'Category deleted' });
+});
+
+// ── Menu items ────────────────────────────────────────────────────────────────
+// iiko restaurants: items are created via POST /sync/iiko.
+// These endpoints allow editing content (image, description) and flags manually.
+
+router.get('/:id/menu-items', async (req: any, res: any) => {
+    const { data, error } = await getSupabaseClient()
+        .from('menu_items')
+        .select('id, name, description, price, image, index_number, is_available, is_popular, is_spicy, category_id, iiko_product_id')
+        .eq('restaurant_id', req.params.id)
+        .eq('is_deleted', false)
+        .order('index_number');
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+router.patch('/:id/menu-items/:itemId', async (req: any, res: any) => {
+    const allowed: Record<string, string> = {
+        description: 'description',
+        image:       'image',
+        isAvailable: 'is_available',
+        isPopular:   'is_popular',
+        isSpicy:     'is_spicy',
+        indexNumber: 'index_number',
+        name:        'name',
+    };
+
+    const updates: Record<string, unknown> = {};
+    for (const [key, col] of Object.entries(allowed)) {
+        if (req.body[key] !== undefined) updates[col] = req.body[key];
+    }
+
+    if (!Object.keys(updates).length) {
+        return res.status(400).json({ error: 'No updatable fields provided' });
+    }
+
+    const { data, error } = await getSupabaseClient()
+        .from('menu_items')
+        .update(updates)
+        .eq('id', req.params.itemId)
+        .eq('restaurant_id', req.params.id)
+        .eq('is_deleted', false)
+        .select()
+        .single();
+
+    if (error || !data) return res.status(404).json({ error: 'Menu item not found' });
+    res.json(data);
+});
+
+// POST /admin/restaurants/:id/menu-items/:itemId/image
+// Uploads an image to Supabase Storage and saves the public URL on the menu item.
+// Requires a `menu-images` bucket in Supabase Storage with public read access.
+router.post('/:id/menu-items/:itemId/image', upload.single('image'), async (req: any, res: any) => {
+    if (!req.file) return res.status(400).json({ error: 'image file is required (multipart field: image)' });
+
+    const supabase = getSupabaseClient();
+    const ext      = req.file.mimetype.split('/')[1] ?? 'jpg';
+    const path     = `${req.params.id}/${req.params.itemId}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+        .from('menu-images')
+        .upload(path, req.file.buffer, {
+            contentType: req.file.mimetype,
+            upsert: true,
+        });
+
+    if (uploadError) return res.status(500).json({ error: uploadError.message });
+
+    const { data: urlData } = supabase.storage.from('menu-images').getPublicUrl(path);
+    const publicUrl = urlData.publicUrl;
+
+    const { data, error } = await supabase
+        .from('menu_items')
+        .update({ image: publicUrl })
+        .eq('id', req.params.itemId)
+        .eq('restaurant_id', req.params.id)
+        .select('id, image')
+        .single();
+
+    if (error || !data) return res.status(404).json({ error: 'Menu item not found' });
+    res.json({ image: data.image });
 });
 
 export default router;

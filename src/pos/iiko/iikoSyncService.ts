@@ -151,34 +151,36 @@ export async function syncIikoMenuToDatabase(restaurantId: string): Promise<Iiko
         if (existing) {
           const updates: Record<string, unknown> = { is_deleted: false };
           if (existing.price !== priceEntry.price) updates.price = priceEntry.price;
-          if (existing.name !== itemName) updates.name = itemName;
+          if (existing.name !== itemName)           updates.name  = itemName;
           if (existing.is_available !== isAvailable) updates.is_available = isAvailable;
-          if (nutrition.energy) updates.calories = nutrition.energy;
-          if (nutrition.proteins) updates.protein = nutrition.proteins;
-          if (nutrition.fats) updates.fat = nutrition.fats;
-          if (nutrition.carbs) updates.carbohydrates = nutrition.carbs;
-          if (size.portionWeightGrams) updates.grams = size.portionWeightGrams;
+          if (nutrition.energy)            updates.calories      = nutrition.energy;
+          if (nutrition.proteins)          updates.protein       = nutrition.proteins;
+          if (nutrition.fats)              updates.fat           = nutrition.fats;
+          if (nutrition.carbs)             updates.carbohydrates = nutrition.carbs;
+          if (size.portionWeightGrams)     updates.grams         = size.portionWeightGrams;
+          // image and description are intentionally NOT updated here —
+          // they may have been set manually via admin and should not be overwritten by iiko.
 
           await supabase.from('menu_items').update(updates).eq('id', existing.id);
           itemsUpdated++;
         } else {
           await supabase.from('menu_items').insert({
-            restaurant_id: restaurantId,
-            category_id: categoryId,
-            name: itemName,
-            description: item.description ?? '',
-            price: priceEntry.price,
-            image: size.buttonImageUrl ?? '',
-            index_number: nextIndex++,
-            is_available: isAvailable,
-            is_deleted: false,
+            restaurant_id:   restaurantId,
+            category_id:     categoryId,
+            name:            itemName,
+            description:     item.description || null,
+            price:           priceEntry.price,
+            image:           size.buttonImageUrl || null,
+            index_number:    nextIndex++,
+            is_available:    isAvailable,
+            is_deleted:      false,
             iiko_product_id: item.itemId,
-            iiko_size_id: sizeId,
-            calories: nutrition.energy ?? 0,
-            protein: nutrition.proteins ?? 0,
-            fat: nutrition.fats ?? 0,
-            carbohydrates: nutrition.carbs ?? 0,
-            grams: size.portionWeightGrams ?? 0,
+            iiko_size_id:    sizeId,
+            calories:        nutrition.energy ?? 0,
+            protein:         nutrition.proteins ?? 0,
+            fat:             nutrition.fats ?? 0,
+            carbohydrates:   nutrition.carbs ?? 0,
+            grams:           size.portionWeightGrams ?? 0,
           });
           itemsAdded++;
         }
