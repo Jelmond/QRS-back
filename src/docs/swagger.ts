@@ -98,6 +98,41 @@ export const swaggerSpec = {
       },
     },
 
+    '/auth/reset-token': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Issue a password-reset token (admin)',
+        description: 'Requires the admin token. The caller emails the link; the response is { token } or { token: null } for an unknown email — never reveal which to the guest. 1-hour, single-use (bound to the current password hash). Rate limited: 3 per hour per email.',
+        requestBody: { required: true, content: { 'application/json': {
+          schema: { type: 'object', required: ['email'], properties: { email: { type: 'string', format: 'email' } } },
+        } } },
+        responses: {
+          200: { description: '{ token: string | null }' },
+          400: { $ref: '#/components/responses/Error400' },
+          401: { description: 'Missing or wrong admin token' },
+          429: { description: 'Too many attempts' },
+        },
+      },
+    },
+
+    '/auth/reset-password': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Set a new password with a reset token',
+        description: 'Sets the password and returns a session like /auth/login. Rate limited: 10 per 15 min per client IP.',
+        requestBody: { required: true, content: { 'application/json': {
+          schema: { type: 'object', required: ['token', 'password'], properties: {
+            token: { type: 'string' }, password: { type: 'string', minLength: 8 },
+          } },
+        } } },
+        responses: {
+          200: { description: '{ token, account: { id, email }, profile }' },
+          400: { description: 'Invalid, used or expired token, or weak password' },
+          429: { description: 'Too many attempts' },
+        },
+      },
+    },
+
     '/auth/me': {
       get: {
         tags: ['Auth'],
