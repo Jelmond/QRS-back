@@ -5,7 +5,7 @@ dotenv.config();
 import express from 'express';
 import bodyParser from 'body-parser';
 import swaggerUi from 'swagger-ui-express';
-import { getPaymentLink } from './utils/processAlfaBankPayment';
+import { getPaymentLink, isAlfaOrderPaid } from './utils/processAlfaBankPayment';
 import { Payment, Order } from './types/schemaTypes';
 import { getSupabaseClient } from './db/supabaseClient';
 import { syncIikoMenuToDatabase } from './pos/iiko/iikoSyncService';
@@ -53,7 +53,7 @@ app.use('/orders', ordersRouter);
 
 
 // Test Supabase connection
-app.get('/test-connection', async (req: any, res: any) => {
+app.get('/test-connection', adminAuth, async (req: any, res: any) => {
   console.log('Testing Supabase connection...');
   try {
     const { data, error } = await supabase.from('orders').select('count').limit(1);
@@ -99,9 +99,11 @@ app.post('/pay', async (req: any, res: any) => {
             throw new Error(`Order not found: ${orderError?.message || 'No data returned'}`);
         }
 
-        console.log('orderData', orderData);
-
         const order = orderData as Order;
+
+        if (order.status === 'completed') {
+            return res.status(409).send({ success: false, error: 'Order is already paid' });
+        }
 
         // Calculate order price (or use the total from the order)
         const orderPrice = order.total;
@@ -231,6 +233,12 @@ app.get('/success-payment', async (req: any, res: any) => {
         
         const payment = payments[0];
 
+        // The return URL can be opened by anyone, so ask Alfa Bank whether the
+        // order was actually paid before marking anything as successful.
+        if (!(await isAlfaOrderPaid(orderId))) {
+            throw new Error('Payment not confirmed by the bank');
+        }
+
         // Look up the order linked to this payment
         const { data: link } = await supabase
             .from('order_payment_links')
@@ -311,7 +319,8 @@ app.get('/fail-payment', async (req: any, res: any) => {
         const { error: updateError } = await supabase
             .from('payments')
             .update({ status: 'failure', updated_at: new Date() })
-            .eq('hash_id', orderId);
+            .eq('hash_id', orderId)
+            .neq('status', 'success'); // a stray fail URL must not undo a confirmed payment
 
         if (updateError) throw updateError;
 
@@ -338,7 +347,7 @@ app.get('/fail-payment', async (req: any, res: any) => {
 
 // ── iiko menu sync ────────────────────────────────────────────────────────────
 // Triggered from admin panel to pull latest nomenclature from iiko into Supabase.
-app.post('/sync/iiko', async (req: any, res: any) => {
+app.post('/sync/iiko', adminAuth, async (req: any, res: any) => {
     const { restaurantId } = req.body;
 
     if (!restaurantId) {

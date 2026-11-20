@@ -1,4 +1,12 @@
 import type { Request, Response, NextFunction } from 'express';
+import { createHash, timingSafeEqual } from 'crypto';
+
+// Hash both sides so the comparison is constant-time regardless of length.
+function safeEqual(a: string, b: string): boolean {
+  const ha = createHash('sha256').update(a).digest();
+  const hb = createHash('sha256').update(b).digest();
+  return timingSafeEqual(ha, hb);
+}
 
 /**
  * Simple shared-secret middleware for all /admin/* routes.
@@ -17,7 +25,7 @@ export function adminAuth(req: Request, res: Response, next: NextFunction): void
   const header = req.headers.authorization ?? '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
 
-  if (!token || token !== secret) {
+  if (!token || !safeEqual(token, secret)) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
