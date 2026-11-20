@@ -283,7 +283,7 @@ app.get('/success-payment', async (req: any, res: any) => {
         
         // Redirect to client URL with error
         const baseClientUrl = process.env.BASE_CLIENT_URL || 'http://localhost:3000';
-        res.redirect(`${baseClientUrl}/payment-error?message=${encodeURIComponent(error.message)}`);
+        res.redirect(`${baseClientUrl}/payment-failure?message=${encodeURIComponent(error.message)}`);
     }
 });
 
@@ -345,7 +345,7 @@ app.get('/fail-payment', async (req: any, res: any) => {
         
         // Redirect to client URL with error
         const baseClientUrl = process.env.BASE_CLIENT_URL || 'http://localhost:3000';
-        res.redirect(`${baseClientUrl}/payment-error?message=${encodeURIComponent(error.message)}`);
+        res.redirect(`${baseClientUrl}/payment-failure?message=${encodeURIComponent(error.message)}`);
     }
 });
 

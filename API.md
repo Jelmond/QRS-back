@@ -285,7 +285,8 @@ Base URL: `https://qrs-back.onrender.com`
     { "menuItemId": "uuid", "quantity": 1 }
   ],
   "comment": "без лука",
-  "isTogo": false
+  "isTogo": false,
+  "tipAmount": 3.70
 }
 ```
 
@@ -297,13 +298,19 @@ Base URL: `https://qrs-back.onrender.com`
 | `items`        | array    | да, минимум 1 элемент |
 | `comment`      | string   | нет        |
 | `isTogo`       | boolean  | нет        |
+| `tipAmount`    | number   | нет — чаевые в BYN, от 0 до суммы блюд |
+
+Итог считается на бэкенде: `total = subtotal + serviceFee + tipAmount`, где `serviceFee = subtotal × SERVICE_FEE_RATE` (по умолчанию 1.5%, как в корзине). Именно `total` списывается при `POST /pay`.
 
 **Пример ответа** `201`
 ```json
 {
   "orderId": "uuid",
   "incrementedId": 1042,
-  "total": 37.00,
+  "subtotal": 37.00,
+  "serviceFee": 0.56,
+  "tipAmount": 3.70,
+  "total": 41.26,
   "status": "pending",
   "iikoOrderId": "uuid",
   "iikoPushError": null

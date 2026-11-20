@@ -11,6 +11,12 @@ import { createIikoTableOrder } from '../pos/iiko/iikoOrderClient';
 
 const router = Router();
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const serviceFeeRate = () => {
+    const rate = Number(process.env.SERVICE_FEE_RATE ?? 0.015);
+    return Number.isFinite(rate) && rate >= 0 && rate < 1 ? rate : 0.015;
+};
+
 // ── POST /orders ──────────────────────────────────────────────────────────────
 // Body:
 //   restaurantId  uuid       required
@@ -19,8 +25,12 @@ const router = Router();
 //   items         { menuItemId: uuid, quantity: number }[]
 //   comment?      string
 //   isTogo?       boolean
+//   tipAmount?    number     guest's tip in BYN, 0..subtotal
+//
+// The charged total is subtotal + service fee + tip, all computed here — the
+// same formula the cart shows. SERVICE_FEE_RATE (default 0.015) is the fee.
 router.post('/', async (req: any, res: any) => {
-    const { restaurantId, tableId, deviceId, items, comment, isTogo } = req.body;
+    const { restaurantId, tableId, deviceId, items, comment, isTogo, tipAmount } = req.body;
 
     if (!restaurantId)           return res.status(400).json({ error: 'restaurantId is required' });
     if (!tableId)                return res.status(400).json({ error: 'tableId is required' });
@@ -87,7 +97,15 @@ router.post('/', async (req: any, res: any) => {
         };
     });
 
-    const total = orderLines.reduce((sum: number, l: any) => sum + l.price * l.quantity, 0);
+    const subtotal = round2(orderLines.reduce((sum: number, l: any) => sum + l.price * l.quantity, 0));
+    const serviceFee = round2(subtotal * serviceFeeRate());
+
+    const tip = tipAmount === undefined || tipAmount === null ? 0 : Number(tipAmount);
+    if (!Number.isFinite(tip) || tip < 0 || tip > subtotal) {
+        return res.status(400).json({ error: 'tipAmount must be between 0 and the order subtotal' });
+    }
+    const tipRounded = round2(tip);
+    const total = round2(subtotal + serviceFee + tipRounded);
 
     // ── 5. Insert order ───────────────────────────────────────────────────────
     const { data: order, error: orderError } = await supabase
@@ -97,6 +115,7 @@ router.post('/', async (req: any, res: any) => {
             guest_profile_id: profile.id,
             table_number:     table.table_number,
             total,
+            tip_amount:       tipRounded,
             status:           'pending',
             is_togo:          isTogo ?? false,
             pos_sync_status:  'pending',
@@ -169,6 +188,9 @@ router.post('/', async (req: any, res: any) => {
     res.status(201).json({
         orderId:      order.id,
         incrementedId: order.incremented_id,
+        subtotal,
+        serviceFee,
+        tipAmount:    tipRounded,
         total:        order.total,
         status:       order.status,
         iikoOrderId,
