@@ -1,13 +1,29 @@
 import type { Request, Response, NextFunction } from 'express';
+import { createHash, timingSafeEqual } from 'crypto';
 
-// Small in-memory fixed-window limiter, per IP. Good enough for a single
+const sha = (v: string) => createHash('sha256').update(v).digest();
+
+// The Next.js client calls the backend from its own server, so every guest
+// shares the client's IP. The client forwards the guest's IP in
+// X-QRS-Client-IP, proven by X-QRS-Proxy-Secret (= ADMIN_SECRET).
+export function clientIp(req: Request): string {
+    const forwarded = req.header('x-qrs-client-ip');
+    const proof = req.header('x-qrs-proxy-secret');
+    const secret = process.env.ADMIN_SECRET;
+    if (forwarded && proof && secret && timingSafeEqual(sha(proof), sha(secret))) {
+        return forwarded.split(',')[0].trim();
+    }
+    return req.ip ?? 'unknown';
+}
+
+// Small in-memory fixed-window limiter, per key (client IP by default). Good enough for a single
 // instance; move to a shared store if the backend is ever scaled out.
-export function rateLimit(max: number, windowMs: number) {
+export function rateLimit(max: number, windowMs: number, keyOf: (req: Request) => string = clientIp) {
     const hits = new Map<string, { count: number; reset: number }>();
 
     return (req: Request, res: Response, next: NextFunction): void => {
         const now = Date.now();
-        const key = req.ip ?? 'unknown';
+        const key = keyOf(req);
         let entry = hits.get(key);
         if (!entry || entry.reset <= now) {
             entry = { count: 0, reset: now + windowMs };

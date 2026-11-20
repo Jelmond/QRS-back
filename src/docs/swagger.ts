@@ -58,7 +58,7 @@ export const swaggerSpec = {
       post: {
         tags: ['Auth'],
         summary: 'Create a guest account',
-        description: 'Creates an account (scrypt-hashed password) and links it to the device guest profile when one exists and is unclaimed. Returns a 30-day session token. Rate limited: 5 per 10 min per IP.',
+        description: 'Creates an account (scrypt-hashed password) and links it to the device guest profile when one exists and is unclaimed. Returns a 30-day session token. Rate limited: 5 per 10 min per client IP (X-QRS-Client-IP when proven by X-QRS-Proxy-Secret).',
         requestBody: { required: true, content: { 'application/json': {
           schema: { type: 'object', required: ['email', 'password'], properties: {
             email: { type: 'string', format: 'email' },
@@ -82,7 +82,7 @@ export const swaggerSpec = {
       post: {
         tags: ['Auth'],
         summary: 'Log in with email and password',
-        description: 'Returns a 30-day session token. Rate limited: 10 per 15 min per IP.',
+        description: 'Returns a 30-day session token. Rate limited: 10 per 15 min per email.',
         requestBody: { required: true, content: { 'application/json': {
           schema: { type: 'object', required: ['email', 'password'], properties: {
             email: { type: 'string', format: 'email' },

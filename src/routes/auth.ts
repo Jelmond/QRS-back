@@ -22,7 +22,10 @@ const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 200;
 
 const signupLimit = rateLimit(5, 10 * 60 * 1000);
-const loginLimit = rateLimit(10, 15 * 60 * 1000);
+// Per email, not per IP: it stops password guessing on one account and isn't
+// shared by every guest behind the client's server.
+const loginLimit = rateLimit(10, 15 * 60 * 1000, (req) =>
+    `login:${typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : ''}`);
 
 async function getProfile(profileId: string | null) {
     if (!profileId) return null;
