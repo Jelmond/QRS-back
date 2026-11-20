@@ -18,6 +18,7 @@ export const swaggerSpec = {
   ],
   tags: [
     { name: 'Health',               description: 'Connection and health checks' },
+    { name: 'Auth',                 description: 'Guest accounts: email + password on top of a guest profile' },
     { name: 'Payments',             description: 'Alfa Bank payment flow' },
     { name: 'POS Sync',             description: 'iiko menu sync to database' },
     { name: 'Admin — POS',          description: 'POS configuration and reservation sync management' },
@@ -46,6 +47,65 @@ export const swaggerSpec = {
             },
           },
           500: { $ref: '#/components/responses/Error500' },
+        },
+      },
+    },
+
+
+    // ── Auth ────────────────────────────────────────────────────────────────
+
+    '/auth/signup': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Create a guest account',
+        description: 'Creates an account (scrypt-hashed password) and links it to the device guest profile when one exists and is unclaimed. Returns a 30-day session token. Rate limited: 5 per 10 min per IP.',
+        requestBody: { required: true, content: { 'application/json': {
+          schema: { type: 'object', required: ['email', 'password'], properties: {
+            email: { type: 'string', format: 'email' },
+            password: { type: 'string', minLength: 8 },
+            firstName: { type: 'string' },
+            lastName: { type: 'string' },
+            deviceId: { type: 'string', description: 'Device whose guest profile the account should adopt' },
+          } },
+        } } },
+        responses: {
+          201: { description: 'Account created: { token, account: { id, email }, profile }' },
+          400: { $ref: '#/components/responses/Error400' },
+          409: { description: 'Email already registered' },
+          429: { description: 'Too many attempts' },
+          500: { $ref: '#/components/responses/Error500' },
+        },
+      },
+    },
+
+    '/auth/login': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Log in with email and password',
+        description: 'Returns a 30-day session token. Rate limited: 10 per 15 min per IP.',
+        requestBody: { required: true, content: { 'application/json': {
+          schema: { type: 'object', required: ['email', 'password'], properties: {
+            email: { type: 'string', format: 'email' },
+            password: { type: 'string' },
+          } },
+        } } },
+        responses: {
+          200: { description: '{ token, account: { id, email }, profile }' },
+          400: { $ref: '#/components/responses/Error400' },
+          401: { description: 'Wrong email or password' },
+          429: { description: 'Too many attempts' },
+        },
+      },
+    },
+
+    '/auth/me': {
+      get: {
+        tags: ['Auth'],
+        summary: 'Current account',
+        description: 'Send Authorization: Bearer <token>.',
+        responses: {
+          200: { description: '{ account: { id, email }, profile }' },
+          401: { description: 'Missing, invalid or expired token' },
         },
       },
     },

@@ -15,11 +15,14 @@ import adminRestaurantsRouter from './routes/adminRestaurants';
 import publicRouter from './routes/public';
 import guestProfileRouter from './routes/guestProfile';
 import ordersRouter from './routes/orders';
+import authRouter from './routes/auth';
 import { adminAuth } from './middleware/adminAuth';
 //@ts-expect-error
 import cors from 'cors';
 
 const app = express();
+// Render sits behind one proxy; trust it so req.ip is the client (rate limits).
+app.set('trust proxy', 1);
 const supabase = getSupabaseClient();
 
 const allowedOrigins = [
@@ -50,6 +53,7 @@ app.use('/admin/restaurants', adminAuth, adminRestaurantsRouter);
 app.use('/', publicRouter);
 app.use('/guest-profile', guestProfileRouter);
 app.use('/orders', ordersRouter);
+app.use('/auth', authRouter);
 
 
 // Test Supabase connection
